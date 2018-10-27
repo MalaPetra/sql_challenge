@@ -62,3 +62,149 @@ WHERE DATEPART(YEAR,DATEADD(MONTH,6,a.impression_dt))=2018
   AND DATEPART(QUARTER, DATEADD(MONTH,6,a.impression_dt)) = 4
 GROUP BY 1,2
 ```
+
+### Scenario 2
+
+2/22 promotion, orders subtotaling at least $\$2,000$ ship for $\$0.22$. The strategy assumes that freight losses will be offset by gains from higher value orders. Orders between $1,700 and $\$2,000$ will likely boost to $\$2,000$ as customers feel compelled to take advantage of bargain freight pricing
+
+- Potential Promotional Effect
+- Potential order gains
+- Potential freight losses
+- Overall net gain/loss
+
+**Test Example**
+
+```{sql}
+SELECT 
+  a.SalesOrderID, --Order ID
+  a.OrderDate, -- Date
+  d.Name AS Ship_to_State, -- State
+  a.SubTotal AS Historical_Order_Total, -- Prior to discount
+  a.Freight AS Historical_Freight, -- Prior to discount
+  CASE 
+    WHEN a.SubTotal>=1700 and a.SubTotal<2000 THEN 'Increase order to 2000 and pay 22 cents as Freight'
+    WHEN a.SubTotal>=2000 THEN 'No Order Change but pay 22 cents as Freight' 
+    ELSE 'No order change and pay historical freight' 
+    END as Promo_Effect,
+  CASE
+    WHEN a.SubTotal>=1700 and a.SubTotal<2000 THEN 2000 - a.SubTotal 
+    ELSE 0 
+    END as Potential_Order_Gain,
+  CASE 
+    WHEN a.SubTotal>=1700 THEN 0.22 else a.Freight END  - a.Freight as PotentialFreightoss,
+  (CASE 
+    WHEN a.SubTotal>=1700 and a.SubTotal<2000 then 2000 -a.SubTotal 
+    ELSE 0 
+    END + 
+      CASE 
+        WHEN a.SubTotal>=1700 THEN 0.22 ELSE a.Freight 
+        END )- 
+          a.Freight AS PromoNetGain_Loss
+FROM [Sales].[SalesOrderHeader] a
+  JOIN Person.BusinessEntityAddress b ON a.ShipToAddressID=b.AddressID
+  JOIN Person.[Address] c ON b.AddressID = c.AddressID
+  JOIN Person.StateProvince d ON c.StateProvinceID=d.StateProvinceID
+WHERE d.Name = 'California' 
+  AND DATEPART (YEAR, DATEADD (MONTH, 6,a.OrderDate)) = 2008
+```
+
+
+### Scenario 12
+
+You are asked to provide frequent updates about the product inventory.
+
+
+**Test Example**
+
+```{sql}
+-- final table includes quantity of each product and total of all products
+SELECT
+  b.name,
+  count(distinct a.ProductID) AS ProductCount,
+  sum(a.Quantity) as ProductQty
+FROM [Production].[ProductInventory] a
+JOIN [Production].[Location] b ON a.LocationID=b.LocationID
+GROUP BY (b.name)
+
+UNION
+
+SELECT 
+  'Total' ,
+  count(distinct a.ProductID) AS ProductCount,
+  SUM(a.Quantity) as ProductQty
+FROM [Production].[ProductInventory] a
+```
+
+### Scenario 13
+
+Identify the employee or group of employees with the greatest number of vacation hours. Since many HR files are indexed by National ID Number, include the last four digits with your output.
+
+**Test Example**
+
+```{sql}
+WITH MaxVacHrs AS 
+	(SELECT MaxVacHrs = MAX (VacationHours) FROM HumanResources.Employee)
+	
+SELECT 
+	RIGHT (N1.NationalIDNumber, 4) AS NationalID,
+	N2.FirstName,
+	N2.LastName,
+	N1.JobTitle,
+	N1.VacationHours
+FROM HumanResources.Employee N1
+INNER JOIN Person.Person N2 ON N1.BusinessEntityID = N2.BusinessEntityID
+INNER JOIN MaxVacHrs N3 ON N1.VacationHours = N3.MaxVacHrs
+```
+
+### Scenario 14
+
+For each product ordered by the Purchasing Department in 2007, indicate the quantity ordered by order date.
+
+```{sql}
+SELECT 
+  b.ProductID,
+  c.Name,
+  a.OrderDate,
+  sum(b.OrderQty) as QTY
+FROM [Purchasing].[PurchaseOrderHeader] a JOIN [Purchasing].[PurchaseOrderDetail] b ON a.PurchaseOrderID=b.PurchaseOrderID 
+JOIN [Production].[Product] c ON b.ProductID=c.ProductID
+WHERE DATEPART(YEAR, a.OrderDate)=2007
+GROUP BY  1,2,3
+ORDER BY sum(b.OrderQty) DESC
+```
+
+### Scenario 15
+
+List of all product descriptions written in languages other than English.
+
+```{sql}
+SELECT
+  a.ProductModelID,
+  a.Name,
+  c.Description,
+  b.CultureID
+FROM
+[Production].[ProductModel] a
+JOIN [Production].[ProductModelProductDescriptionCulture] b ON a.ProductModelID=b.ProductModelID 
+JOIN  [Production].[ProductDescription] c ON b.ProductDescriptionID=c.ProductDescriptionID
+WHERE b.CultureID != 'en'
+```
+
+### Scenario 20
+
+Provide address data about stores with main offices located in Toronto.
+
+```{sql}
+SELECT 
+  d.Name AS StoreName,
+  a.AddressLine1,
+  a.AddressLine2,
+  a.City,c.Name,
+  a.PostalCode
+FROM [Person].[Address] a JOIN [Person].[BusinessEntityAddress] b ON a.AddressID=b.AddressID 
+JOIN [Person].[StateProvince] c  ON a.StateProvinceID=c.StateProvinceID
+JOIN [Sales].[Store] d ON d.BusinessEntityID=b.BusinessEntityID
+WHERE b.AddressTypeID=3 -- or d.name = 'Main Office'
+  AND a.City='Toronto'
+```
+
