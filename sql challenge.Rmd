@@ -1,0 +1,64 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r setup}
+#sql chunk, db connection not available
+library(DBI)
+db = dbConnect(RSQLite::SQLite(), dbname = "sql.sqlite")
+knitr::opts_chunk$set(connection = "db")
+```
+
+### Scenario 1
+
+- Comparison of total sales from the fiscal quarters of 2008 to the fiscal quarters of 2007
+- Fiscal year is from June to July
+
+**Test Example**
+
+```{sql}
+SELECT
+a.SalesPersonID,
+c.LastName,
+/*add 6 months to orderdate to get fiscal year from July to June*/
+YEAR(DATEADD(MONTH,6,a.OrderDate)) as FY, /*result is a year*/
+DATEPART(QUARTER,DATEADD(MONTH,6,a.OrderDate)) as FQ, /*result is a number of quarter*/
+SUM(a.SubTotal) as FQSales,  /*sum of sales*/
+SUM(b.SubTotal) as SameSalesFQLast,  /*sum of sales*/
+SUM(a.SubTotal)-SUM(b.SubTotal) as Change,  /*difference between sum of sales*/
+((SUM(a.SubTotal)-SUM(b.SubTotal)) /SUM(b.SubTotal)) * 100 as pct_change  /*percentage*/
+/*2018-2017/2017*/
+ /*join two same tables to itself and specify dates in tables*/
+  
+FROM [Sales].[SalesOrderHeader] a left join [Sales].[SalesOrderHeader] b
+ON a.SalesPersonID=b.SalesPersonID
+/*quarters in both tables are same*/
+AND DATEPART(QUARTER,DATEADD(MONTH,6,b.OrderDate))=DATEPART(QUARTER,DATEADD(MONTH,6,a.OrderDate))
+/*table b is in 2008 and table a is in 2007*/
+AND DATEPART(YEAR,DATEADD(MONTH,6,b.OrderDate))=DATEPART(YEAR,DATEADD(MONTH,6,a.OrderDate))-1
+INNER JOIN Person.[Person] c 
+ON c.BusinessEntityID=a.SalesPersonID
+WHERE DATEPART(YEAR,DATEADD(MONTH,6,a.OrderDate))=2008
+GROUP BY 1,2,3,4
+```
+
+**Real Example**
+
+```{sql}
+SELECT
+DATEPART(YEAR,DATEADD(MONTH,6,a.impression_dt)) as FY, /*result is a year*/
+DATEPART(QUARTER,DATEADD(MONTH,6,a.impression_dt)) as FQ, /*result is a number of quarter*/
+COUNT(a.sudid) as FQSales,  /*sum of sales*/
+COUNT(b.sudid) as SameSalesFQLast,  /*sum of sales*/
+COUNT(a.sudid)-COUNT(b.sudid) as Change,  /*difference between sum of sales*/
+((COUNT(a.sudid)-COUNT(b.sudid))/COUNT(b.sudid))*100 as pct_change  /*percentage*/
+
+FROM fact_impressions a left join fact_impressions b
+  ON a.sudid = b.sudid
+  AND DATEPART(QUARTER,DATEADD(MONTH,6,b.impression_dt))=DATEPART(QUARTER,DATEADD(MONTH,6,a.impression_dt))
+  AND DATEPART(YEAR,DATEADD(MONTH,6,b.impression_dt))=DATEPART(YEAR,DATEADD(MONTH,6,a.impression_dt))-1
+WHERE DATEPART(YEAR,DATEADD(MONTH,6,a.impression_dt))=2018
+  AND DATEPART(QUARTER, DATEADD(MONTH,6,a.impression_dt)) = 4
+GROUP BY 1,2
+```
