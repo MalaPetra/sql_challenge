@@ -152,8 +152,8 @@ SELECT
 	N1.JobTitle,
 	N1.VacationHours
 FROM HumanResources.Employee N1
-INNER JOIN Person.Person N2 ON N1.BusinessEntityID = N2.BusinessEntityID
-INNER JOIN MaxVacHrs N3 ON N1.VacationHours = N3.MaxVacHrs
+  INNER JOIN Person.Person N2 ON N1.BusinessEntityID = N2.BusinessEntityID
+  INNER JOIN MaxVacHrs N3 ON N1.VacationHours = N3.MaxVacHrs
 ```
 
 ### Scenario 14
@@ -166,8 +166,9 @@ SELECT
   c.Name,
   a.OrderDate,
   sum(b.OrderQty) as QTY
-FROM [Purchasing].[PurchaseOrderHeader] a JOIN [Purchasing].[PurchaseOrderDetail] b ON a.PurchaseOrderID=b.PurchaseOrderID 
-JOIN [Production].[Product] c ON b.ProductID=c.ProductID
+FROM [Purchasing].[PurchaseOrderHeader] a 
+  JOIN [Purchasing].[PurchaseOrderDetail] b ON a.PurchaseOrderID=b.PurchaseOrderID 
+  JOIN [Production].[Product] c ON b.ProductID=c.ProductID
 WHERE DATEPART(YEAR, a.OrderDate)=2007
 GROUP BY  1,2,3
 ORDER BY sum(b.OrderQty) DESC
@@ -183,10 +184,9 @@ SELECT
   a.Name,
   c.Description,
   b.CultureID
-FROM
-[Production].[ProductModel] a
-JOIN [Production].[ProductModelProductDescriptionCulture] b ON a.ProductModelID=b.ProductModelID 
-JOIN  [Production].[ProductDescription] c ON b.ProductDescriptionID=c.ProductDescriptionID
+FROM [Production].[ProductModel] a
+  JOIN [Production].[ProductModelProductDescriptionCulture] b ON a.ProductModelID=b.ProductModelID 
+  JOIN  [Production].[ProductDescription] c ON b.ProductDescriptionID=c.ProductDescriptionID
 WHERE b.CultureID != 'en'
 ```
 
@@ -202,9 +202,73 @@ SELECT
   a.City,c.Name,
   a.PostalCode
 FROM [Person].[Address] a JOIN [Person].[BusinessEntityAddress] b ON a.AddressID=b.AddressID 
-JOIN [Person].[StateProvince] c  ON a.StateProvinceID=c.StateProvinceID
-JOIN [Sales].[Store] d ON d.BusinessEntityID=b.BusinessEntityID
+  JOIN [Person].[StateProvince] c  ON a.StateProvinceID=c.StateProvinceID
+  JOIN [Sales].[Store] d ON d.BusinessEntityID=b.BusinessEntityID
 WHERE b.AddressTypeID=3 -- or d.name = 'Main Office'
   AND a.City='Toronto'
 ```
 
+### Scenario 21
+
+List of employees who are currently in the Marketing department and were hired prior to 2002 or later than 2004.
+
+```{sql}
+SELECT
+  d.FirstName,
+  d.LastName,
+  c.JobTitle,
+  c.BirthDate,
+  c.MaritalStatus,
+  a.StartDate AS Hire_Date
+FROM [HumanResources].[EmployeeDepartmentHistory] a 
+  JOIN [HumanResources].[Department] b ON a.DepartmentID=b.DepartmentID
+  JOIN [HumanResources].[Employee] c ON c.BusinessEntityID=a.BusinessEntityID
+  JOIN  [Person].[Person] d ON d.BusinessEntityID=a.BusinessEntityID
+WHERE 
+  (DATEPART(YEAR, a.StartDate)<2002 
+    OR DATEPART(YEAR, a.StartDate)>2004) 
+  AND b.Name='Marketing' 
+  AND a.EndDate IS NULL
+```
+
+### Scenario 22
+
+Who left that review?
+
+```{sql}
+SELECT
+  a.ProductReviewID,
+  a.ProductID,
+  b.Name,
+  a.ReviewerName,
+  a.Rating,
+  a.EmailAddress,
+  c.BusinessEntityID -- will be returned as 0
+FROM [Production].[ProductReview] a 
+JOIN [Production].[Product] b ON a.ProductID=b.ProductID
+LEFT JOIN [Person].[EmailAddress] c ON a.EmailAddress=c.EmailAddress
+```
+
+### Scenario 23
+
+List of customers with phone numbers for all orders for shorts placed online after July 7, 2008.
+
+```{sql}
+SELECT
+  a.SalesOrderID,
+  a.OrderDate,
+  c.Name,
+  f.FirstName,
+  f.LastName,
+  g.PhoneNumber
+FROM [Sales].[SalesOrderHeader] a 
+  INNER JOIN [Sales].[SalesOrderDetail] b ON a.SalesOrderID=b.SalesOrderID
+  INNER JOIN [Production].[Product] c ON b.ProductID=c.ProductID
+  INNER JOIN [Sales].[Customer] e ON e.CustomerID=a.CustomerID
+  INNER JOIN [Person].[Person] f ON e.PersonID=f.BusinessEntityID
+  INNER JOIN [Person].[PersonPhone] g ON g.BusinessEntityID=f.BusinessEntityID
+WHERE a.OrderDate>'2008-07-07' 
+ AND a.OnlineOrderFlag=1 
+ AND LOWER(c.Name) LIKE '%shorts%'
+ORDER BY a.SalesOrderID
+```
