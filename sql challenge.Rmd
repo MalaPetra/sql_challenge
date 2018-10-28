@@ -272,3 +272,156 @@ WHERE a.OrderDate>'2008-07-07'
  AND LOWER(c.Name) LIKE '%shorts%'
 ORDER BY a.SalesOrderID
 ```
+
+### Scenario 19
+
+Display the most common reasons why products were scrapped through the manufacturing process.
+
+```{sql}
+WITH Temp AS 
+	(SELECT
+		ROW_NUMBER () OVER (PARTITION BY N1.ProductID 
+												ORDER BY COUNT (N2.Name) DESC) AS rank, --name is the reason why it was scrapped
+		N1.ProductID
+		ProductName AS N2.Name
+		COUNT (N2.Name) AS WorkOrderCount
+		N3.Name AS ScrapReason
+	FROM Production.WorkOrder N1
+		INNER JOIN Production.Product N2 ON N1.ProductID = N2.ProductID
+		INNER JOIN Production.ScrapReason N3 ON N1.ScrapReasonID = N3.ScrapReasonID
+		GROUP BY N1.ProductID, N2.Name, N3.Name)
+
+SELECT
+	ProductID,
+	ProductName,
+	WorkOrderCount,
+	ScrapReason
+FROM Temp
+WHERE rank = 1
+ORDER BY WorkOrderCount DESC
+```
+
+### Solution 18
+
+- minimium historical cost
+- maximum historical cost
+- historical cost variablity - maximum minus minimum
+- ranking of all historical cost variablities - rank of 1 reflects the product ID exhibiting the greatetist historical cost variability
+
+```{sql}
+-- ROW_NUMBER – Returns the sequential number of a row within a partition of a result set, without any gaps in the ranking. ... The rank of a row is one plus the number of ranks that come before the row in question.
+
+--DENSE_RANK – Returns the rank of rows within the partition of a result set, without any gaps in the ranking
+
+SELECT 
+	N1.ProductID
+	N2.Name AS ProductName
+	N3.Name AS SubCategory
+	MIN (N1.StandardCost) AS MinCost
+  MAX (N1.StandardCost) AS 	MaxCost
+	MAX (N1.StandardCost) - MIN (N1.StandardCost) AS CostVar
+
+	CASE 
+			WHEN MAX (N1.StandardCost) - MIN (N1.StandardCost) = 0 THEN 0 
+			ELSE DENSE_RANK () OVER (ORDER BY MAX (N1.StandardCost) - MIN     (N1.StandardCost) DESC) 
+			END AS CostVarRank -- gives a number to each row based on difference in standard cost	
+
+FROM Production.ProductCostHistory N1
+  INNER JOIN Production.Product N2 ON N1.ProductID = N2.ProductID
+  INNER JOIN Production.ProductSubcategory N3 ON N2.ProductSubcategoryID = N3.ProductSubcategoryID
+GROUP BY N1.ProductID, N2.[Name], N3.[Name]
+ORDER BY MAX (N1.StandardCost) - MIN (N1.StandardCost) DESC
+```
+
+### Solution 17
+
+Identify stores in which the last order date was at least 12 months ago (today's date is October 7, 2008)
+
+```{sql}
+WITH Stores AS
+
+(SELECT
+	N3.BusinessEntityID,
+	N1.CustomerID,
+	N2.StoreID,
+	N3.Name AS StoreName
+	MAX (N1.OrderDate) AS LastOrderDate
+	DATEDIFF (MONTH, MAX (N1.OrderDate), '2008-10-07') AS MonthsSinceLastOrder
+FROM Sales.SalesOrderHeader N1
+  INNER JOIN Sales.Customer N2 ON N1.CustomerID = N2.CustomerID
+  INNER JOIN Sales.Store N3 ON N2.StoreID = N3.BusinessEntityID
+GROUP BY 1,2,3,4)
+
+SELECT * 
+FROM Stores
+WHERE MonthsSinceLastOrder > = 12
+ORDER BY MonthsSinceLastOrder DESC
+```
+
+### Solution 16
+
+summary table that shows, by territory, the percentage of orders placed online in comparison to orders not placed online
+
+```{sql}
+SELECT
+	TerritoryID,
+	COUNT(*) AS TotalOrders,
+	CONVERT(VARCHAR(50), -- to add % after a calculation
+	  ROUND( -- to round the calculation to the whole number
+	    (CONVERT(FLOAT, -- to calculate with float 
+	      SUM(CASE -- calculation itself
+	        WHEN OnlineOrderFlag = 1 
+	        THEN 1 
+	        ELSE 0 
+	        END)) /COUNT(*))* 100
+	   ,0)
+	  ) 
+	 + '%' AS PercOnline
+
+	CONVERT(VARCHAR(50),
+		ROUND(
+			(CONVERT(FLOAT,
+				SUM(CASE 
+				  WHEN OnlineOrderFlag = 0 
+				  THEN 1 ELSE 0 
+				  END)) /COUNT(*))* 100
+			,0)
+			)
+	+ '%' AS PercOffline
+FROM Sales.SalesOrderHeader
+GROUP BY TerritoryID
+ORDER BY TerritoryID
+```
+
+
+### Solution 11
+
+max tax rate in each country
+
+```{sql}
+SELECT
+	N3.Name AS Country,
+	MAX (N1.TaxRate) AS MaxTaxRate
+FROM Sales.SalesTaxRate N1
+  INNER JOIN Person.StateProvince N2 ON N1.StateProvinceID = N2.StateProvinceID
+  INNER JOIN Person.CountryRegion N3 ON N2.CountryRegionCode = N3.CountryRegionCode
+GROUP BY 1
+```
+
+### Solution 4
+
+compare sales from Tuesday to other days of the week; calculate average reveniue per order by day of week in 2008
+
+```{sql}
+SELECT 
+	DATENAME (WEEKDAY, OrderDate) AS DayCategory,
+	SUM (Subtotal) AS Revenue,
+	COUNT (*) AS Orders,
+	SUM (Subtotal) / COUNT (*) AS RevenuePerOrder
+FROM Sales.SalesOrderHeader
+WHERE DATEPART(YEAR, OrderDate) = 2008
+AND OnlineOrderFlag = 0
+GROUP BY 1
+ORDER BY RevenuePerOrder DESC
+```
+
