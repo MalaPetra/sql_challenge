@@ -425,3 +425,219 @@ GROUP BY 1
 ORDER BY RevenuePerOrder DESC
 ```
 
+### Scenario 24
+
+Email preferences in table Person.Person:
+
+- The value 0 indicates "Contact does not wish to receive e-mail promotions"
+- The value 1 indicates "Contact does wish to receive e-mail promotions from Adventure Works"
+- The value 2 indicates "Contact does wish to receive e-mail promotions from Adventure Works and selected partners"
+
+Count number of email addresses per email preference
+
+```{sql}
+WITH Email AS
+(SELECT
+	N1.BusinessEntityID,
+	N1.EmailAddress,
+	CASE 
+		WHEN N2.EmailPromotion = 0 THEN 
+						'Contact does not wish to receive e-mail promotions'
+		WHEN N2.EmailPromotion = 1 THEN 
+						'Contact does wish to receive e-mail promotions from AdventureWorks'
+		WHEN N2.EmailPromotion = 2 THEN 
+						'Contact does wish to receive e-mail promotions from AdventureWorks and selected partners' 
+	END AS EmailPreference
+FROM Person.EmailAddress N1
+LEFT JOIN Person.Person N2 ON N1.BusinessEntityID = N2.BusinessEntityID
+WHERE N2.PersonType = 'IN')
+
+SELECT 
+	EmailPref, COUNT (*)
+FROM Email
+GROUP BY EmailPref
+ORDER BY COUNT (*) DESC
+```
+
+### Scenario 25
+
+Which two sales territories were top performers during fiscal years 2006 and 2007
+
+```{sql}
+WITH TerritoryRank AS
+
+(SELECT 
+	DATEPART(YEAR, DATEADD (MONTH, 6, N1.OrderDate)) AS FY, -- adjust orderdate to fiscal years, from July to June
+	N2.Name AS Territery,
+	SUM (N1.SubTotal) AS Revenue,
+	DENSE_RANK () OVER (PARTITION BY YEAR (DATEADD (MONTH, 6, N1.OrderDate))   
+											ORDER BY SUM (N1.Subtotal) DESC) AS TerritoryRank
+FROM Sales.SalesOrderHeader N1
+  INNER JOIN Sales.SalesTerritory N2 ON N1.TerritoryID = N2.TerritoryID
+GROUP BY 1,2)
+
+SELECT * 
+FROM TerritoryRank 
+WHERE FY IN (2006, 2007) AND TerritoryRank IN (1, 2) 
+ORDER BY FY, Territory$Rank
+```
+
+### Scenario 26
+
+Rank commission percentages by sales person
+If commission percentages are equal among sales people, rank by Bonus in descending order
+
+```{sql}
+SELECT
+	BusinessEntityID,
+	CommissionPct,
+	Bonus,
+	DENSE_RANK () OVER (ORDER BY CommissionPct DESC, Bonus DESC) AS Rank
+FROM Sales.SalesPerson
+ORDER BY CommissionPct DESC
+```
+
+### Scenario 27
+
+Part 1:
+
+Report the number of work orders by productID, order the results from the greates number of work orders to the least
+
+Part 2:
+Report the number of work orders by product name. Order your results from the greatest number of work orders to the least.
+
+```{sql}
+-- Part I
+SELECT
+	ProductID,
+	COUNT (*) AS WorkOrders
+FROM Production.WorkOrder
+GROUP BY ProductID
+ORDER BY COUNT (*) DESC
+
+-- Part II
+SELECT
+	N2.Name AS ProductName,
+	COUNT (*) AS WorkOrders
+FROM Production.WorkOrder N1
+INNER JOIN Production.Product N2 ON N1.ProductID = N2.ProductID
+GROUP BY 1
+ORDER BY 2 DESC
+```
+
+### Scenario 28
+
+Part 1:
+
+Today is May 24, 2008. Using only revenue information from May 1 through May 23, estimate revenue for the whole month of May.
+
+Output: No of days in month so far,Total Revenue in month so far,Revenue per day for month so far,Monthly Revenue trended for all of May
+
+Part 2:
+
+the actual revenue information
+```{sql}
+-- declare is not available in redshift, I can use CTE instead
+DECLARE @StartDate DATE = '2008-05-01'
+DECLARE @EndDate DATE = '2008-05-23'
+
+-- Part I: 
+SELECT
+	DATEDIFF (day, @StartDate, @EndDate) + 1 AS DaysInMonthSoFar,	-- difference between start and end date in days
+	SUM (SubTotal) AS RevenueInMonthSoFar, -- total revenue so far
+	SUM (SubTotal / DATEDIFF (day, @StartDate, @EndDate) + 1) AS RevPerDayforMonthSoFar, -- revenue per day
+  DAY (EOMONTH (@StartDate)) AS DaysInMonth -- end of month of start date, taking only day from the final format
+
+  SUM (SubTotal) / (DATEDIFF (day, @StartDate, @EndDate) + 1) -- average per day 
+								* DAY (EOMONTH (@StartDate)) AS MonthlyRevTrended -- days in month 
+
+FROM Sales.SalesOrderHeader
+WHERE OrderDate BETWEEN @StartDate AND @EndDate
+
+
+-- Part II:
+SELECT
+	SUM (SubTotal) / DAY (EOMONTH (@StartDate)) AS ActualPerDay
+	SUM (Subtotal) AS ActualRev
+FROM Sales.SalesOrderHeader
+WHERE OrderDate BETWEEN @StartDate AND EOMONTH (@EndDate)
+```
+
+### Scenario 29
+
+Separate the names from the domains
+
+```{sql}
+-- charindex returns the position
+-- LoginID (for example, adventure-works\ken0)
+-- Domain (for example, adventure-works)
+-- Username (for example ken0)
+SELECT
+	BusinessEntityID,
+	LoginID
+	LEFT (LoginID, CHARINDEX ('\', LoginID, 1) - 1) AS Domain -- position of \ -1 is length to be taken from left
+	RIGHT (LoginID, LEN (LoginID) - CHARINDEX ('\', LoginID, 1)) AS Username
+FROM HumanResources.Employee
+ORDER BY BusinessEntityID
+```
+
+### Scenario 30
+
+Management will review the current distribution of labor by shift within the Production department.
+
+```{sql}
+SELECT
+	N2.Name AS DepartmentName
+	N3.Name AS ShiftName
+	COUNT (*) AS Employees
+FROM HumanResources.EmployeeDepartmentHistory N1
+  INNER JOIN HumanResources.Department N2 ON N1.DepartmentID = N2.DepartmentID
+  INNER JOIN HumanResources.[Shift] N3 ON N1.ShiftID = N3.ShiftID
+WHERE N2.Name = 'Production'
+	AND N1.EndDate IS NULL
+GROUP BY 1,2
+ORDER BY 1,2
+```
+
+### Scenario 31
+
+Labels S => size Small
+Labels M => size Medium
+Labels L => size Large
+Labels XL => size Extra Large
+
+Part 1
+
+Determine if the variety of labels is sufficient to cover all alphasized products. For example, since 2XL labels do not exist, no label could be applied to a 2XL product. If a 2XL product existed, the variety of labels would be insufficient
+
+Part 2
+
+Suppose, 1000 labels are available in each size. Calculate the number of additional labels needed to cover all the relevant products in the inventory.
+
+```{sql}
+-- Part I
+-- Is there a product without dedicated size?
+SELECT DISTINCT Size
+FROM Production.Product
+WHERE ISNUMERIC (Size) = 0 
+	AND Size IS NOT NULL
+	
+
+-- The variety of stickers is appropriate for assignment to the company's products. 
+
+
+-- Part II
+SELECT 
+	N1.Size
+	SUM (N2.Quantity) AS CurrentQuantity,
+	CASE
+								WHEN SUM (N2.Quantity) - 1000 < 0 
+									THEN 0 -- not needed
+								ELSE SUM (N2.Quantity) - 1000 END AS AdditLabelsNeeded
+
+FROM Production.Product N1
+  INNER JOIN Production.ProductInventory N2 ON N1.ProductID = N2.ProductID
+WHERE ISNUMERIC (N1.Size) = 0
+	AND N1.Size IS NOT NULL 
+GROUP BY N1.Size 
+```
