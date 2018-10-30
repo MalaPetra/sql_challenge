@@ -791,3 +791,34 @@ INNER JOIN Sales.SalesPersonQuotaHistory N3 ON -- end of 2007
 						WHERE YEAR (QuotaDate) = 2007)
 INNER JOIN Person.Person AS N4 ON N1.BusinessEntityID = N4.BusinessEntityID
 ```
+
+### Scenario 42
+
+Find 5 most successful sale people to mentor the five least successful sales people, create a list of sales people to match with one another
+
+- Success is measured by 2008 revenue
+- Dates are based on OrderDate
+- Do not consider tax and freight with revenue
+- Ignore orders with no SalesPersonID
+
+```{sql}
+-- create two columns with row numbers, one desc and one asc, join data based on row number
+WITH SalesGrouping AS
+	(SELECT 
+		SalesPersonID,
+		SUM (SubTotal) AS SalesTotal,
+		ROW_NUMBER () OVER (ORDER BY SUM (Subtotal) DESC) AS SalesRankSubTotalDESC,
+		ROW_NUMBER () OVER (ORDER BY SUM (Subtotal)) AS SalesRankSubTotalASC,
+	FROM Sales.SalesOrderHeader
+	WHERE YEAR (OrderDate) = 2008 AND SalesPersonID IS NOT NULL
+	GROUP BY SalesPersonID)
+
+SELECT TOP 5
+	N1.SalesPersonID AS SuccessSalesPersonID,
+	N1.SalesTotal AS SuccessRevenue,
+	N2.SalesPersonID AS UnsuccessSalesPersonID,
+	N2.SalesTotal AS UnsuccessRevenue
+FROM SalesGrouping N1
+INNER JOIN SalesGrouping N2 ON N1.SalesRankSubTotalDESC = N2.SalesRankSubTotalASC
+ORDER BY N1.SalesRankSubTotalDESC
+```
