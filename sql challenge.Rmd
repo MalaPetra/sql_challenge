@@ -822,3 +822,173 @@ FROM SalesGrouping N1
 INNER JOIN SalesGrouping N2 ON N1.SalesRankSubTotalDESC = N2.SalesRankSubTotalASC
 ORDER BY N1.SalesRankSubTotalDESC
 ```
+
+### Scenario 41
+
+Examine the prevalence of adventure-works.com e-mail addresses throught the company's database.
+
+- Number of e-mail addresses containing the adventure-works.com
+- Number of e-mail addresses not containing the adventure-works.com domain
+- Total number of e-mail addresses
+
+```{sql}
+SELECT
+	N2.PersonType,
+	SUM (CASE WHEN N1.EmailAddress LIKE '%adventure-works%' THEN 1 ELSE 0 END) AS AWEmail,
+  SUM (CASE WHEN N1.EmailAddress NOT LIKE '%adventure-works%' THEN 1 ELSE 0 END) AS NotAWEmail,
+	COUNT (*) AS Total
+FROM Person.EmailAddress N1
+INNER JOIN Person.Person N2 ON N1.BusinessEntityID = N2.BusinessEntityID
+GROUP BY N2.PersonType
+ORDER BY Total DESC
+```
+
+### Scenario 40
+
+Calculate the number of sales orders within each of the following revenue ranges:
+
+1. $\$0 - \$100$
+2. $\$100 - \$500$
+3. $\$500 - \$1000$
+4. $\$1000 - \$2500$
+5. $\$2500 - \$5000$
+6. $\$5000 - \$100008$
+7. $\$10000 - \$50000$
+8. $\$50000 - \$100000$
+9.  $\$100000$
+
+for year 2005
+```{sql}
+SELECT
+	CASE
+		WHEN TotalDue < 100 THEN 1
+		WHEN TotalDue < 500 THEN 2
+		WHEN TotalDue < 1000 THEN 3
+    WHEN TotalDue < 2500 THEN 4
+    WHEN TotalDue < 5000 THEN 5
+    WHEN TotalDue < 10000 THEN 6			
+    WHEN TotalDue < 50000 THEN 7
+    WHEN TotalDue < 100000 THEN 8
+  ELSE 9 
+	END AS SortID,
+	
+	CASE
+	  WHEN TotalDue < 100 THEN '0 - 100'
+	  WHEN TotalDue < 500 THEN '100 - 500'
+	  WHEN TotalDue < 1000 THEN '500 - 1,000'
+	  WHEN TotalDue < 2500 THEN '1,000 - 2,500'
+	  WHEN TotalDue < 5000 THEN '2,500 - 5,000'
+	  WHEN TotalDue < 10000 THEN '5,000 - 10,000'
+	  WHEN TotalDue < 50000 THEN '10,000 - 50,000'
+	  WHEN TotalDue < 100000 THEN '50,000 - 100,000'   
+	 ELSE '> 100,000'
+   END AS SalesAmountCategory,
+   
+COUNT (*) AS Orders
+FROM Sales.SalesOrderHeader
+WHERE YEAR (OrderDate) = 2005
+GROUP BY                                                                              
+	CASE
+		WHEN TotalDue < 100 THEN 1
+		WHEN TotalDue < 500 THEN 2
+		WHEN TotalDue < 1000 THEN 3
+		WHEN TotalDue < 2500 THEN 4
+		WHEN TotalDue < 5000 THEN 5
+		WHEN TotalDue < 10000 THEN 6
+		WHEN TotalDue < 50000 THEN 7
+		WHEN TotalDue < 100000 THEN 8
+		ELSE 9
+	END
+	,CASE
+		WHEN TotalDue < 100 THEN '0 - 100'
+		WHEN TotalDue < 500 THEN '100 - 500'
+		WHEN TotalDue < 1000 THEN '500 - 1,000'
+		WHEN TotalDue < 2500 THEN '1,000 - 2,500'
+		WHEN TotalDue < 5000 THEN '2,500 - 5,000'
+		WHEN TotalDue < 10000 THEN '5,000 - 10,000'
+		WHEN TotalDue < 50000 THEN '10,000 - 50,000'
+		WHEN TotalDue < 100000 THEN '50,000 - 100,000'
+		ELSE '> 100,000'
+	END
+ORDER BY SortID
+```
+
+### Scenario 39
+
+Part 1:
+
+Show the quota, actual sales and percent to quota for each quarter and sales person
+
+```{sql}
+WITH SalesQuotaSummary (
+SELECT
+	N1.BusinessEntityID,
+	N1.QuotaDate,
+	N1.SalesQuota,
+	CONVERT (DECIMAL (10,2), SUM (N2.SubTotal)) AS ActualSales,
+	CONVERT (DECIMAL (10,2), CONVERT (FLOAT, SUM (N2.SubTotal)) / N1.SalesQuota) AS PercToQuota
+FROM Sales.SalesPersonQuotaHistory N1
+LEFT JOIN Sales.SalesOrderHeader N2 ON N1.BusinessEntityID = N2.SalesPersonID
+								AND N2.OrderDate >= N1.QuotaDate 
+								AND N2.OrderDate < DATEADD (MONTH, 3, N1.QuotaDate)
+GROUP BY 1,2,3
+
+SELECT *
+FROM SalesQuotaSummary
+ORDER BY BusinessEntityID, QuotaDate
+```
+
+Part 2:
+
+Summarize results from Part 1 by sales person, by year
+
+```{sql}
+WITH SalesQuotaSummary (
+SELECT
+	N1.BusinessEntityID,
+	N1.QuotaDate,
+	N1.SalesQuota,
+	CONVERT (DECIMAL (10,2), SUM (N2.SubTotal)) AS ActualSales,
+	CONVERT (DECIMAL (10,2), CONVERT (FLOAT, SUM (N2.SubTotal)) / N1.SalesQuota) AS PercToQuota
+FROM Sales.SalesPersonQuotaHistory N1
+LEFT JOIN Sales.SalesOrderHeader N2 ON N1.BusinessEntityID = N2.SalesPersonID
+								AND N2.OrderDate >= N1.QuotaDate 
+								AND N2.OrderDate < DATEADD (MONTH, 3, N1.QuotaDate)
+GROUP BY 1,2,3
+
+SELECT
+  BusinessEntityID,
+	YEAR (QuotaDate) AS QuotaYear,
+	SUM (SalesQuota) AS TotalQuota,
+	SUM (ActualSales) AS TotalSales,
+	CONVERT (DECIMAL (10,2), CONVERT (FLOAT, SUM (ActualSales)) / SUM (SalesQuota)) AS TotalPercToQuota
+	CONVERT (DECIMAL (10,2), AVG (PercToQuota)) AS AvgQrtlyPercToQuota
+FROM SalesQuotaSummary
+ORDER BY BusinessEntityID, QuotaDate
+```
+
+### Scenario 38
+
+Calculate the profit margins of bike models
+
+Profit margin is based on the percent difference between ListPrice and StandardCost
+Only consider bike models currently sold
+
+```{sql}
+SELECT
+	N1.ProductModelID
+	N4.Name AS ProductName,
+	CONVERT (DECIMAL(10,2),
+							CONVERT (FLOAT, (N1.ListPrice - N1.StandardCost)) / N1.StandardCost) AS ProfitMargin
+FROM Production.Product N1
+INNER JOIN Production.ProductSubcategory N2 ON N1.ProductSubcategoryID = N2.ProductSubcategoryID
+INNER JOIN Production.ProductCategory N3 ON N2.ProductCategoryID = N3.ProductCategoryID
+INNER JOIN Production.ProductModel N4 ON N1.ProductModelID = N4.ProductModelID
+WHERE N3.Name = 'Bikes'
+  AND N1.SellEndDate IS NULL
+GROUP BY 
+	N1.ProductModelID
+	,N4.[Name]
+	,CONVERT (DECIMAL (10,2) ,CONVERT (FLOAT, (N1.ListPrice - N1.StandardCost)) / N1.StandardCost)
+ORDER BY ProfitMargin DESC
+```
