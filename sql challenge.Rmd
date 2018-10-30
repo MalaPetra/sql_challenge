@@ -745,3 +745,23 @@ FROM Reasons
 GROUP BY ReasonName, ReasonInfluence
 ORDER BY ReasonName, SalesOrderCount DESC
 ```
+
+### Scenario 49
+
+Display by most recent due dates the top 10% of work orders in which the scrap rate was greater than 3%, ordered by most recent due date.
+
+```{sql}
+SELECT TOP 10 PERCENT N1.WorkOrderID,
+	CAST (N1.DueDate AS DATE) AS DueDate,
+	N3.Name AS ProdName,
+	N2.Name AS ScrapReason,
+	N1.ScrappedQty,
+	N1.OrderQty,
+	ROUND (N1.ScrappedQty / CONVERT (FLOAT, N1.OrderQty)* 100, 2) AS PercScrapped
+FROM Production.WorkOrder N1
+INNER JOIN Production.ScrapReason N2 ON N1.ScrapReasonID = N2.ScrapReasonID
+INNER JOIN Production.Product N3 ON N1.ProductID = N3.ProductID
+WHERE N1.ScrappedQty / CONVERT (FLOAT, N1.OrderQty) >  0.03
+ORDER BY N1.DueDate DESC
+```
+```
