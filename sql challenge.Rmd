@@ -710,3 +710,38 @@ LEFT JOIN Sales.SalesOrderDetail b
 ON a.SpecialOfferID=b.SpecialOfferID
 WHERE a.Type='Excess Inventory'
 ```
+
+### Scenario 50
+
+Create a query about sales order reasons. 
+
+When a sales order has only one reason, categorize as "Exclusive Reason". 
+
+When a sales order has more than one reason, categorize as "Contributing Reason". 
+
+Create a summary count of sales orders by reason name and your newly created ReasonInfluence column (Exclusive Reason and Contributing Reason.)
+
+```{sql}
+WITH Reasons AS
+	(SELECT
+		N1.SalesOrderID
+		N2.Name AS ReasonName,
+    CASE 
+								WHEN COUNT (N3.SalesOrderID) >  1 
+									THEN 'Contributing Reason'								
+								WHEN COUNT (N3.SalesOrderID) = 1 
+									THEN 'Exclusive Reason' END AS ReasonInfluence
+
+		FROM Sales.SalesOrderHeaderSalesReason N1
+		INNER JOIN Sales.SalesReason N2 ON N1.SalesReasonID = N2.SalesReasonID
+		INNER JOIN Sales.SalesOrderHeaderSalesReason N3 ON N1.SalesOrderID = N3.SalesOrderID
+		GROUP BY N1.SalesOrderID, N2.Name)
+
+SELECT 
+	ReasonName,
+	ReasonInfluence,
+	COUNT (*) AS SalesOrderCount
+FROM Reasons
+GROUP BY ReasonName, ReasonInfluence
+ORDER BY ReasonName, SalesOrderCount DESC
+```
