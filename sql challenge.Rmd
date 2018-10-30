@@ -671,3 +671,42 @@ LEFT JOIN Data N2 ON N1.BusinessEntityID = N2.BusinessEntityID
 						AND N2.PayRateNumber = 2 -- I need to filter only index 2 in my second table
 WHERE N1.PayRateNumber = 1; -- I need to filter only index 1 in my first table
 ```
+
+### Scenario 51
+
+Part 1:
+
+Pull a list of the previous excess inventory discounts 
+
+```{sql}
+SELECT
+	SpecialOfferID,
+	Type AS DiscountType,
+	Description AS ,DiscountDescr,
+	Category,
+	StartDate,
+	EndDate,
+	DiscountPct
+FROM Sales.SpecialOffer
+WHERE Type = 'Excess Inventory' 
+```
+
+Part 2:
+
+Add an additional column to the output from Part 1j. List the number of sales orders in which the discount was utilized.
+
+```{sql}
+SELECT a.SpecialOfferID,
+  SpecialOfferID,
+	Type AS DiscountType,
+	Description AS ,DiscountDescr,
+	Category,
+	StartDate,
+	EndDate,
+	DiscountPct
+  count(distinct b.SalesOrderID) as NumOrdersDiscApplied
+FROM Sales.SpecialOffer a 
+LEFT JOIN Sales.SalesOrderDetail b
+ON a.SpecialOfferID=b.SpecialOfferID
+WHERE a.Type='Excess Inventory'
+```
