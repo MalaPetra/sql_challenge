@@ -1061,3 +1061,78 @@ WHERE date_trun('YEAR', N1.OrderDate = 2006
 GROUP BY N3.Name
 ORDER BY SUM (N1.TotalDue) DESC
 ```
+
+### Scenario 32
+
+Part 1:
+
+Provide the following:
+
+- Total number of emplyees throughout the company
+- Percentage of employees who are Male
+- Percentage of employees who are Female
+- Average number of months of emplyment (today is January 1, 2008)
+
+
+```{sql}
+SELECT 
+	COUNT (*) AS Employees,
+	ROUND (SUM (CASE WHEN Gender = 'M' THEN 1 ELSE 0 END) / CONVERT (FLOAT, COUNT (*)) * 100, 2) AS PercentageMale,
+	ROUND (SUM (CASE WHEN Gender = 'F' THEN 1 ELSE 0 END) / CONVERT (FLOAT, COUNT (*)) * 100, 2) AS PercentageFemale,
+	AVG (DATEDIFF (MONTH, HireDate, '2008-01-01')) AS AvgMonthsEmp
+FROM HumanResources.Employee
+```
+
+Part 2:
+
+Divide empoyee data into quartiles based on average number of months of emplyoment
+
+```{sql}
+SELECT
+	X1.Quartile,
+	COUNT (*) AS Employees,
+  ROUND (SUM (CASE WHEN Gender = 'M' THEN 1 ELSE 0 END) / CONVERT (FLOAT, COUNT (*)) * 100, 2) AS PercentageMale,
+	ROUND (SUM (CASE WHEN Gender = 'F' THEN 1 ELSE 0 END) / CONVERT (FLOAT, COUNT (*)) * 100, 2) AS PercentageFemale,
+	AVG (X1.MonthsEmployed) AS AvgMonthsEmp
+FROM (SELECT 
+		BusinessEntityID,
+		NTILE (4) OVER (ORDER BY DATEDIFF (MONTH, HireDate, '2008-01-01')) AS Quartile,
+		HireDate,
+		DATEDIFF (MONTH, HireDate, '2008-01-01') AS MonthsEmployed,
+		Gender
+		FROM HumanResources.Employee) X1
+GROUP BY X1.Quartile
+```
+
+### Scenario 33
+
+Create a query summarizing pay rates and age groups by job title. Assume today is January 1, 2008. Your output should be structured with the following columns:
+
+- Job Title
+- Age group in years (< 18; 18-35; 36-50; 51-60; 61+)
+- Pay Rate
+- Number of employees
+
+```{sql}
+SELECT 
+	N1.JobTitle,
+
+	CASE 
+			WHEN DATEDIFF ('Year', N1.BirthDate, '2008-01-01') < 18 THEN '< 18'
+			WHEN DATEDIFF ('Year', N1.BirthDate, '2008-01-01') < 35 THEN '18 - 35'
+			WHEN DATEDIFF ('Year', N1.BirthDate, '2008-01-01') < 50 THEN '36 - 50'
+			WHEN DATEDIFF ('Year', N1.BirthDate, '2008-01-01') < 60 THEN '51 - 60'
+	ELSE '61 +' END AS AgeGroup,
+
+	N2.Rate,
+	COUNT (N1.BusinessEntityID) AS Employees
+FROM HumanResources.Employee N1
+  INNER JOIN HumanResources.EmployeePayHistory N2 ON N1.BusinessEntityID = N2.BusinessEntityID 
+  INNER JOIN (SELECT BusinessEntityID, MAX (RateChangeDate) AS  RatechangeDate
+			FROM HumanResources.EmployeePayHistory
+			GROUP BY BusinessEntityID) N3
+	ON N3.BusinessEntityID = N2.BusinessEntityID AND N3.RatechangeDate = N2.RateChangeDate
+
+GROUP BY 
+	1,3,2
+```
