@@ -1096,7 +1096,7 @@ SELECT
 	AVG (X1.MonthsEmployed) AS AvgMonthsEmp
 FROM (SELECT 
 		BusinessEntityID,
-		NTILE (4) OVER (ORDER BY DATEDIFF (MONTH, HireDate, '2008-01-01')) AS Quartile,
+		NTILE (4) OVER (ORDER BY DATEDIFF (MONTH, HireDate, '2008-01-01')) AS Quartile, -- ntile function
 		HireDate,
 		DATEDIFF (MONTH, HireDate, '2008-01-01') AS MonthsEmployed,
 		Gender
@@ -1128,7 +1128,7 @@ SELECT
 	COUNT (N1.BusinessEntityID) AS Employees
 FROM HumanResources.Employee N1
   INNER JOIN HumanResources.EmployeePayHistory N2 ON N1.BusinessEntityID = N2.BusinessEntityID 
-  INNER JOIN (SELECT BusinessEntityID, MAX (RateChangeDate) AS  RatechangeDate
+  INNER JOIN (SELECT BusinessEntityID, MAX (RateChangeDate) AS  RatechangeDate -- filter in join
 			FROM HumanResources.EmployeePayHistory
 			GROUP BY BusinessEntityID) N3
 	ON N3.BusinessEntityID = N2.BusinessEntityID AND N3.RatechangeDate = N2.RateChangeDate
@@ -1136,3 +1136,53 @@ FROM HumanResources.Employee N1
 GROUP BY 
 	1,3,2
 ```
+
+### Scenario 3
+
+For each fiscal year (2007 and 2008) find the first dates when the cumulative running revenue total hit $10 million.
+
+```{sql}
+WITH FY2007 AS  
+		(SELECT
+			 2007 AS FY,
+			 CAST (OrderDate AS DATE) AS OrderDate,
+			ROW_NUMBER () OVER (ORDER BY SalesOrderID) AS OrderNumber,
+
+			 SUM (SubTotal) OVER (ORDER BY Orderdate 
+											ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS RunningTotal
+			FROM Sales.SalesOrderHeader
+			WHERE DATEPART ('YEAR', DATEADD ('MONTH', 6, OrderDate)) = 2007),
+
+	FY2008 AS 
+		(SELECT
+			2008 AS FY,
+			CAST (OrderDate AS DATE) AS OrderDate,
+			ROW_NUMBER () OVER (ORDER BY SalesOrderID) AS OrderNumber,
+
+			SUM (SubTotal) OVER (ORDER BY Orderdate 
+											ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS RunningTotal -- Running Total Window function
+			FROM Sales.SalesOrderHeader
+			WHERE DATEPART ('YEAR', DATEADD ('MONTH', 6, OrderDate)) = 2008)
+
+SELECT TOP 1 * FROM FY2007 WHERE RunningTotal > = 10000000
+UNION
+SELECT TOP 1 * FROM FY2008 WHERE RunningTotal > = 10000000
+```
+
+### Scenario 4
+
+Compare sales from Tuesday to other days of the week to see if the intiative is working.
+
+```{sql}
+SELECT 
+	 DATENAME (WEEKDAY, OrderDate) AS DayCategory, -- datename function
+	 SUM (Subtotal) AS Revenue,
+	 COUNT (*) AS Orders,
+	 SUM (Subtotal) / COUNT (*) AS RevenuePerOrder
+FROM Sales.SalesOrderHeader
+WHERE date_trunc('year', OrderDate) = 2008 
+  AND OnlineOrderFlag = 0
+GROUP BY DATENAME (WEEKDAY, OrderDate)
+ORDER BY RevenuePerOrder DESC
+```
+
