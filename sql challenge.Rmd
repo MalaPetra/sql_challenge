@@ -1026,3 +1026,38 @@ SELECT date_trunc('year', OrderDate), SUM(TotalVolumeDiscount) AS TotalVolumeDis
 FROM table
 GROUP BY Year
 ```
+
+### Scenario 35
+
+Two emplyees are given free bicycles at the start of each quaterly meeting. The employees are chose at random, with eligibility limited to the least senior positions.
+
+Generate employee names.
+
+```{sql}
+SELECT TOP 2
+	N2.FirstName,
+	N2.LastName,
+	N1.JobTitle
+FROM HumanResources.Employee N1
+  INNER JOIN Person.Person N2 ON N1.BusinessEntityID = N2.BusinessEntityID
+
+WHERE N1.OrganizationLevel IN (SELECT MAX (OrganizationLevel) 
+								FROM HumanResources.Employee)
+ORDER BY NEWID ()
+```
+
+### Scenario 34
+
+Report revenue by state in 2006. Order the data from states with the greatest revenue to states with the least revenue.
+
+```{sql}
+SELECT
+	N3.Name AS State,
+	SUM (N1.TotalDue) AS TotalRevenue
+FROM Sales.SalesOrderHeader N1
+  INNER JOIN Person.Address N2 ON N1.ShipToAddressID = N2.AddressID
+  INNER JOIN Person.StateProvince N3 ON N2.StateProvinceID = N3.StateProvinceID
+WHERE date_trun('YEAR', N1.OrderDate = 2006
+GROUP BY N3.Name
+ORDER BY SUM (N1.TotalDue) DESC
+```
