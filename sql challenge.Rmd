@@ -987,8 +987,42 @@ INNER JOIN Production.ProductModel N4 ON N1.ProductModelID = N4.ProductModelID
 WHERE N3.Name = 'Bikes'
   AND N1.SellEndDate IS NULL
 GROUP BY 
-	N1.ProductModelID
-	,N4.[Name]
-	,CONVERT (DECIMAL (10,2) ,CONVERT (FLOAT, (N1.ListPrice - N1.StandardCost)) / N1.StandardCost)
+	N1.ProductModelID,
+	N4.Name,
+	CONVERT (DECIMAL (10,2) ,CONVERT (FLOAT, (N1.ListPrice - N1.StandardCost)) / N1.StandardCost)
 ORDER BY ProfitMargin DESC
+```
+
+### Scenario 36
+
+Part 1
+
+Create a query about sales orders that utilized volume discounts. (Total volume discount - the sum of volume discounts applied to the order)
+
+Part 2
+
+Summarize data from Part 1 by order year
+
+```{sql}
+-- part 1
+WITH table AS(
+SELECT
+	N1.SalesOrderID,
+	N3.OrderDate,
+	SUM (N1.UnitPriceDiscount * N1.UnitPrice * N1.OrderQty) AS TotalVolumeDiscount
+FROM Sales.SalesOrderDetail N1
+  INNER JOIN Sales.SpecialOffer N2 ON N1.SpecialOfferID = N2.SpecialOfferID
+  INNER JOIN Sales.SalesOrderHeader N3 ON N1.SalesOrderID = N3.SalesOrderID
+WHERE N2.Type = 'Volume Discount'
+GROUP BY N1.SalesOrderID, N3.OrderDate
+HAVING SUM (N1.UnitPriceDiscount * N1.UnitPrice * N1.OrderQty) > 0)
+
+SELECT *
+FROM table
+ORDER BY SalesOrderID
+
+-- part 2
+SELECT date_trunc('year', OrderDate), SUM(TotalVolumeDiscount) AS TotalVolumeDiscount
+FROM table
+GROUP BY Year
 ```
